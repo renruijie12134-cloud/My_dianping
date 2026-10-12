@@ -40,6 +40,8 @@ public class Blog implements Serializable {
      * 用户id
      */
     private Long userId;
+
+
     /**
      * 用户图标
      */
@@ -55,6 +57,8 @@ public class Blog implements Serializable {
      */
     @TableField(exist = false)
     private Boolean isLike;
+
+
 
     /**
      * 标题

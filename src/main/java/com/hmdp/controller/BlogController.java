@@ -114,5 +114,17 @@ public class BlogController {
         return Result.ok(records);
     }
 
+    /**
+     * 根据用户查询关注的博主的博文列表l
+     */
+    @GetMapping("/of/follow")
+     public Result queryBlogByFollow(@RequestParam("lastId") Long max,
+             @RequestParam(value = "offset", defaultValue = "0") Integer offset) {
+         return blogService.queryBlogOfFollow(max, offset);
+     }
+
+
+
+
 
 }

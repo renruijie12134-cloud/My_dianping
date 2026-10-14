@@ -13,14 +13,19 @@ import com.hmdp.service.IUserService;
 import com.hmdp.utils.RedisConstants;
 import com.hmdp.utils.RegexUtils;
 import com.hmdp.utils.SystemConstants;
+import com.hmdp.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.data.redis.connection.BitFieldSubCommands;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpSession;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -135,4 +140,72 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         return Result.ok(token);
     }
 
+
+    /**
+     * 签到功能
+     * @return
+     */
+    @Override
+    public Result sign() {
+        // 1:获取用户id
+        Long userId= UserHolder.getUser().getId();
+        // 2:获取当前时间
+        LocalDate now = LocalDate.now();
+        // 3:拼接出key
+        String key = "sign:" + userId + now.format(DateTimeFormatter.ofPattern(":yyyyMM"));
+        // 4:获取今天是这个月的第几天，因为我们是一个月一次的签到，所以用天数作为offset
+        // value里存放的是用户这个月的签到记录，1表示已签到，0表示未签到，所以获取今天是这个月的第几天作为offset
+        int dayOfMonth = now.getDayOfMonth();
+        // 5: 写入Redis ： setbit key offset 1
+        stringRedisTemplate.opsForValue().setBit(key, dayOfMonth - 1, true);
+        // 6: 返回结果
+        return Result.ok();
+    }
+
+    /**
+     * 统计连续签到
+     */
+    @Override
+    public Result signCount() {
+        // 1:获取用户id
+        Long userId = UserHolder.getUser().getId();
+        // 2:获取当前时间
+        LocalDate now = LocalDate.now();
+        // 3:拼接出key
+        String key = "sign:" + userId + now.format(DateTimeFormatter.ofPattern(":yyyyMM"));
+        // 4:获取今天是这个月的第几天
+        int dayOfMonth = now.getDayOfMonth();
+        // 5:获取本月截止到今天的签到记录，返回一个是十进制：bitfield sign:userid:时间 get u14 0
+        List<Long> result = stringRedisTemplate.opsForValue().bitField(
+                key,
+                BitFieldSubCommands.create()
+                        .get(BitFieldSubCommands.BitFieldType.unsigned(dayOfMonth))
+                        .valueAt(0)
+        );
+        if(result==null||result.isEmpty()){
+            // 没有签到记录
+            return Result.ok(0);
+        }
+        Long isSigned = result.get(0);
+        if (isSigned == null || isSigned == 0) {
+            // 没有签到记录
+            return Result.ok(0);
+        }
+        // 6.循环遍历
+        int count=0;
+        while(true){
+            if((isSigned & 1) == 0){
+                // 如果为0 则结束
+                break;
+            }
+            // 如果不为0 则继续
+            count++;
+            // 右移一位
+            isSigned >>= 1;
+        }
+        // 6:返回结果
+        return Result.ok(isSigned);
+    }
 }
+
+
